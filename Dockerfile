@@ -203,6 +203,22 @@ LABEL maintainer="Tal Shmuli" \
 # Fix Hadolint DL4006: Set the SHELL option -o pipefail before RUN with pipes
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# hadolint ignore=DL3008,DL3015
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libx11-6 \
+        libxxf86vm1 \
+        libxcursor1 \
+        libxi6 \
+        libxrandr2 \
+        libxinerama1 \
+        libgl1 \
+        libegl1 \
+        libsm6 \
+        libxext6 \
+        libxkbcommon0 \
+        libdbus-1-3 && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /opt/blender
 RUN curl -sL "https://download.blender.org/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz" | \
     tar -xJ -C /opt/blender --strip-components=1 && \
