@@ -204,8 +204,10 @@ jobs:
             docker run --rm "$LOCAL_TAG" test -x /opt/scripts/blender_runner.py
             echo "Blender headless binary and scripts verified successfully!"
           else
-            docker run -i --rm "$LOCAL_TAG" \
-              /opt/environments/python/comfyui/bin/python - "$TARGET" < scripts/validate_image.py
+            docker run -i --rm \
+              -e TARGET="$TARGET" \
+              "$LOCAL_TAG" \
+              /opt/environments/python/comfyui/bin/python - < scripts/validate_image.py
 
             if [ "$TARGET" = "full" ]; then
               echo "=== Full Studio Blender 4.4 LTS Validation ==="

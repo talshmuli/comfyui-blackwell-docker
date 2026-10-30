@@ -3,6 +3,7 @@
 
 import asyncio
 import importlib.util
+import os
 import sys
 
 
@@ -28,7 +29,7 @@ def validate_base():
     validate_pytorch_and_blackwell()
 
     print("=== ComfyUI Core Registration Validation ===")
-    sys.argv.append("--cpu")
+    sys.argv = ["main.py", "--cpu"]
     sys.path.append("/opt/ComfyUI")
     import comfy.options
     comfy.options.enable_args_parsing()
@@ -51,7 +52,7 @@ def validate_custom_nodes():
     assert numpy.__version__.startswith("1."), f"FAIL: Expected NumPy 1.x, got {numpy.__version__}"
     print(f"NumPy version verified: {numpy.__version__}")
 
-    sys.argv.append("--cpu")
+    sys.argv = ["main.py", "--cpu"]
     sys.path.append("/opt/ComfyUI")
     sys.path.append("/opt/ComfyUI/custom_nodes/ComfyUI-Manager/glob")
     import comfy.options
@@ -76,8 +77,16 @@ def validate_custom_nodes():
 
 
 def main():
-    target = sys.argv[1] if len(sys.argv) > 1 else "nodes"
+    target = os.environ.get("TARGET")
+    if not target and len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+        target = sys.argv[1]
+    if not target:
+        target = "nodes"
+
     print(f"Running automated container integrity validation for target: {target}")
+
+    # Ensure sys.argv is clean for any subsequent argparse calls
+    sys.argv = ["main.py", "--cpu"]
 
     if target == "base":
         validate_base()
