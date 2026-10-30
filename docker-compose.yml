@@ -84,6 +84,36 @@ services:
     networks:
       - vfx-net
 
+  # ============================================================================
+  # ComfyUI Full Studio (All-In-One Monolith: ComfyUI + Nodes + Blender 4.4 LTS)
+  # ============================================================================
+  comfyui-full:
+    image: ${COMFYUI_FULL_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:full-cuda128-sm120}
+    container_name: ${COMFYUI_FULL_CONTAINER_NAME:-comfyui-full}
+    profiles: ["monolith", "full"]
+    restart: unless-stopped
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - COMFYUI_FLAGS=--preview-method auto --normalvram
+      - WEB_ENABLE_AUTH=false
+      - CF_QUICK_TUNNELS=false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./data/models:/opt/ComfyUI/models
+      - ./data/output:/opt/ComfyUI/output
+      - ./data/blender_scenes:/workspace/scenes
+    networks:
+      - vfx-net
+
 # ==============================================================================
 # Shared Render Bus & Isolated Studio Network
 # ==============================================================================

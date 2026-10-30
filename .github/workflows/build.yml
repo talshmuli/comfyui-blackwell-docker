@@ -40,7 +40,6 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
 jobs:
   build-and-publish:
@@ -58,9 +57,12 @@ jobs:
           - target: blender-worker
             tag_suffix: blender-worker
             is_latest: false
+          - target: full
+            tag_suffix: full
+            is_latest: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -96,71 +98,7 @@ jobs:
           fi
 
           # Inspect upstream image and package versions
-          python3 -c '
-          import subprocess, sys, urllib.request, re, os
-
-          should_build = False
-          reasons = []
-
-          # 1. Check upstream base image digest
-          upstream_digest = ""
-          try:
-              cmd_up = ["docker", "run", "--rm", "quay.io/skopeo/stable", "inspect", "docker://ghcr.io/ai-dock/comfyui:latest-cuda", "--format", "{{.Digest}}"]
-              upstream_digest = subprocess.check_output(cmd_up, timeout=60).decode().strip()
-          except Exception as e:
-              print(f"Warning: Failed to fetch upstream digest: {e}")
-
-          published_base_digest = ""
-          published_tags = ""
-          try:
-              cmd_pub = ["docker", "run", "--rm", "quay.io/skopeo/stable", "inspect", f"docker://ghcr.io/{os.environ[\"IMAGE_NAME\"]}:latest", "--format", "{{index .Labels \"upstream.base.digest\"}}"]
-              published_base_digest = subprocess.check_output(cmd_pub, timeout=60).decode().strip()
-          except Exception:
-              published_base_digest = ""
-
-          try:
-              cmd_tags = ["docker", "run", "--rm", "quay.io/skopeo/stable", "inspect", f"docker://ghcr.io/{os.environ[\"IMAGE_NAME\"]}:latest", "--format", "{{.RepoTags}}"]
-              published_tags = subprocess.check_output(cmd_tags, timeout=60).decode().strip()
-          except Exception:
-              published_tags = ""
-
-          if upstream_digest and published_base_digest and upstream_digest != published_base_digest:
-              should_build = True
-              reasons.append(f"Upstream ComfyUI base image updated: {upstream_digest} != {published_base_digest}")
-          elif upstream_digest and not published_base_digest:
-              print("No base digest label in published image; checking tags and packages...")
-
-          # 2. Check latest PyTorch nightly release
-          latest_torch = ""
-          try:
-              req = urllib.request.Request("https://download.pytorch.org/whl/nightly/cu128/torch/", headers={"User-Agent": "Mozilla/5.0"})
-              with urllib.request.urlopen(req, timeout=30) as resp:
-                  html = resp.read().decode("utf-8")
-              matches = re.findall(r"torch-2\.[0-9.]*\.dev[0-9]*", html)
-              latest_torch = matches[-1] if matches else ""
-          except Exception as e:
-              print(f"Warning: Failed to fetch PyTorch nightly index: {e}")
-
-          if latest_torch and latest_torch not in published_tags:
-              should_build = True
-              reasons.append(f"New PyTorch nightly cu128 wheel detected: {latest_torch} not present in published tags")
-
-          print("=== Update Detection Summary ===")
-          print(f"Upstream Base Digest:  {upstream_digest}")
-          print(f"Published Base Digest: {published_base_digest}")
-          print(f"Latest PyTorch Nightly: {latest_torch}")
-          print(f"Published Tags:        {published_tags}")
-          print(f"Should Build:          {should_build}")
-
-          reason_str = "; ".join(reasons) if reasons else "No upstream or package updates detected"
-          print(f"Decision: {reason_str}")
-
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"should_build={\"true\" if should_build else \"false\"}\n")
-              f.write(f"reason={reason_str}\n")
-              f.write(f"upstream_digest={upstream_digest}\n")
-              f.write(f"latest_torch={latest_torch}\n")
-          '
+          python3 scripts/check_updates.py
 
       - name: Free Runner Disk Space (Reclaim ~50 GB)
         if: steps.check_updates.outputs.should_build == 'true'
@@ -219,6 +157,13 @@ jobs:
             REAL_SEMVER_TAG="${COMFY_VER}-torch${TORCH_VER}-${CUDA_VER}-base-${DATE_TAG}-r${{ github.run_number }}"
             CANONICAL_TAG="${COMFY_VER}-base-cuda128-sm120"
             SHORT_TAG="base-cuda128-sm120"
+          elif [ "$TARGET" = "full" ]; then
+            COMFY_VER=$(docker run --rm "$LOCAL_TAG" git -C /opt/ComfyUI describe --tags --always 2>/dev/null || echo "v0.2.2")
+            TORCH_VER=$(docker run --rm "$LOCAL_TAG" /opt/environments/python/comfyui/bin/python -c 'import torch; print(torch.__version__.split("+")[0])')
+            CUDA_VER=$(docker run --rm "$LOCAL_TAG" /opt/environments/python/comfyui/bin/python -c 'import torch; print("cu" + torch.version.cuda.replace(".", ""))')
+            REAL_SEMVER_TAG="${COMFY_VER}-torch${TORCH_VER}-${CUDA_VER}-full-${DATE_TAG}-r${{ github.run_number }}"
+            CANONICAL_TAG="${COMFY_VER}-full-cuda128-sm120"
+            SHORT_TAG="full-cuda128-sm120"
           else
             COMFY_VER=$(docker run --rm "$LOCAL_TAG" git -C /opt/ComfyUI describe --tags --always 2>/dev/null || echo "v0.2.2")
             TORCH_VER=$(docker run --rm "$LOCAL_TAG" /opt/environments/python/comfyui/bin/python -c 'import torch; print(torch.__version__.split("+")[0])')
@@ -232,9 +177,11 @@ jobs:
             REAL_SEMVER_TAG="${{ github.event.inputs.tag_override }}-${TARGET}"
           fi
 
-          echo "real_semver_tag=$REAL_SEMVER_TAG" >> "$GITHUB_OUTPUT"
-          echo "canonical_tag=$CANONICAL_TAG" >> "$GITHUB_OUTPUT"
-          echo "short_tag=$SHORT_TAG" >> "$GITHUB_OUTPUT"
+          {
+            echo "real_semver_tag=$REAL_SEMVER_TAG"
+            echo "canonical_tag=$CANONICAL_TAG"
+            echo "short_tag=$SHORT_TAG"
+          } >> "$GITHUB_OUTPUT"
           echo "Generated Pure SemVer Tag: $REAL_SEMVER_TAG"
           echo "Generated Canonical Tag: $CANONICAL_TAG"
           echo "Generated Short Tag: $SHORT_TAG"
@@ -242,64 +189,13 @@ jobs:
       - name: Validate Container Integrity (${{ matrix.flavor.target }})
         if: steps.check_updates.outputs.should_build == 'true'
         run: |
-          LOCAL_TAG="temp-stage:${{ matrix.flavor.target }}"
+          TARGET="${{ matrix.flavor.target }}"
+          LOCAL_TAG="temp-stage:${TARGET}"
           echo "============================================================"
-          echo "Running automated CI validation tests for: ${{ matrix.flavor.target }}"
+          echo "Running automated CI validation tests for: ${TARGET}"
           echo "============================================================"
           
-          if [ "${{ matrix.flavor.target }}" = "base" ]; then
-            docker run --rm "$LOCAL_TAG" /opt/environments/python/comfyui/bin/python -c "
-            import sys, importlib.util, torch, torchvision, torchvision.ops, torchaudio
-            print('=== Base PyTorch & CUDA Blackwell Validation ===')
-            print('PyTorch Version:   ', torch.__version__)
-            print('CUDA Runtime:      ', torch.version.cuda)
-            assert '12.8' in torch.version.cuda, f'FAIL: Expected CUDA 12.8, got {torch.version.cuda}'
-            build_config = torch.__config__.show()
-            assert 'sm_120' in build_config, 'FAIL: sm_120 compute capability not found'
-            assert importlib.util.find_spec('xformers') is None, 'FAIL: xformers still present'
-            _ = torchvision.ops.nms
-
-            # ComfyUI core registration
-            sys.argv.append('--cpu')
-            sys.path.append('/opt/ComfyUI')
-            import comfy.options; comfy.options.enable_args_parsing()
-            import server, nodes
-            print('Total registered nodes in clean ComfyUI core:', len(nodes.NODE_CLASS_MAPPINGS))
-            print('Core node count healthy!')
-            "
-          elif [ "${{ matrix.flavor.target }}" = "nodes" ]; then
-            docker run --rm "$LOCAL_TAG" /opt/environments/python/comfyui/bin/python -c "
-            import sys, importlib.util, torch, torchvision, torchvision.ops, torchaudio, asyncio
-            print('=== Nodes PyTorch & Custom Node Stack Validation ===')
-            assert '12.8' in torch.version.cuda, f'FAIL: Expected CUDA 12.8, got {torch.version.cuda}'
-            assert 'sm_120' in torch.__config__.show(), 'FAIL: sm_120 missing'
-            assert importlib.util.find_spec('xformers') is None, 'FAIL: xformers found'
-            _ = torchvision.ops.nms
-
-            import numpy, numba, colour, insightface, onnx, mediapipe
-            assert numpy.__version__.startswith('1.'), f'FAIL: Expected NumPy 1.x, got {numpy.__version__}'
-
-            sys.argv.append('--cpu')
-            sys.path.append('/opt/ComfyUI')
-            sys.path.append('/opt/ComfyUI/custom_nodes/ComfyUI-Manager/glob')
-            import comfy.options; comfy.options.enable_args_parsing()
-            import server
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            s = server.PromptServer(loop)
-
-            import execution, nodes
-            nodes.init_extra_nodes()
-
-            print('Total registered nodes in ComfyUI:', len(nodes.NODE_CLASS_MAPPINGS))
-            assert 'VHS_VideoCombine' in nodes.NODE_CLASS_MAPPINGS, 'FAIL: VHS_VideoCombine missing'
-            assert 'VHS_LoadVideo' in nodes.NODE_CLASS_MAPPINGS, 'FAIL: VHS_LoadVideo missing'
-            assert 'DownloadAndLoadLivePortraitModels' in nodes.NODE_CLASS_MAPPINGS, 'FAIL: LivePortrait missing'
-            assert 'LatentSyncNode' in nodes.NODE_CLASS_MAPPINGS, 'FAIL: LatentSync missing'
-            assert any('AnimateDiff' in k for k in nodes.NODE_CLASS_MAPPINGS), 'FAIL: AnimateDiff missing'
-            print('All custom nodes registered successfully!')
-            "
-          elif [ "${{ matrix.flavor.target }}" = "blender-worker" ]; then
+          if [ "$TARGET" = "blender-worker" ]; then
             echo "=== Blender 4.4 LTS Headless Worker Validation ==="
             docker run --rm "$LOCAL_TAG" blender -b --version
             docker run --rm "$LOCAL_TAG" test -d /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node
@@ -307,9 +203,20 @@ jobs:
             docker run --rm "$LOCAL_TAG" test -x /opt/scripts/blender_entrypoint.sh
             docker run --rm "$LOCAL_TAG" test -x /opt/scripts/blender_runner.py
             echo "Blender headless binary and scripts verified successfully!"
+          else
+            docker run -i --rm "$LOCAL_TAG" \
+              /opt/environments/python/comfyui/bin/python - "$TARGET" < scripts/validate_image.py
+
+            if [ "$TARGET" = "full" ]; then
+              echo "=== Full Studio Blender 4.4 LTS Validation ==="
+              docker run --rm "$LOCAL_TAG" blender -b --version
+              docker run --rm "$LOCAL_TAG" test -d /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node
+              docker run --rm "$LOCAL_TAG" test -x /usr/local/bin/blender
+              echo "Blender headless binary in Full image verified successfully!"
+            fi
           fi
           echo "============================================================"
-          echo "ALL CI VALIDATION CHECKS PASSED FOR ${{ matrix.flavor.target }}!"
+          echo "ALL CI VALIDATION CHECKS PASSED FOR ${TARGET}!"
           echo "============================================================"
 
       - name: Audit Container Filesystem for Exposed Sensitive Data & Keys
@@ -364,47 +271,9 @@ jobs:
 
       - name: Evaluate and Print Trivy Vulnerability Counts
         if: steps.check_updates.outputs.should_build == 'true'
-        run: |
-          python3 -c "
-          import json, os
-
-          target = '${{ matrix.flavor.target }}'
-          json_file = f'trivy-results-{target}.json'
-          counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'UNKNOWN': 0}
-
-          if os.path.exists(json_file):
-              try:
-                  with open(json_file, 'r') as f:
-                      data = json.load(f)
-                  for res in data.get('Results', []):
-                      for vuln in res.get('Vulnerabilities', []):
-                          sev = vuln.get('Severity', 'UNKNOWN').upper()
-                          counts[sev] = counts.get(sev, 0) + 1
-              except Exception as e:
-                  print(f'Warning parsing {json_file}: {e}')
-
-          print('============================================================')
-          print(f'🛡️  TRIVY VULNERABILITY COUNT SUMMARY: {target}')
-          print('============================================================')
-          print(f'  LOW      : {counts["LOW"]}')
-          print(f'  MEDIUM   : {counts["MEDIUM"]}')
-          print(f'  HIGH     : {counts["HIGH"]}')
-          print(f'  CRITICAL : {counts["CRITICAL"]}')
-          print('============================================================')
-
-          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
-          if summary_path and os.path.exists(summary_path):
-              with open(summary_path, 'a') as sf:
-                  sf.write(f'### 🛡️ Trivy Security Scan: \`{target}\`\n\n')
-                  sf.write('| Vulnerability Severity | Total Detected |\n')
-                  sf.write('| :--- | :---: |\n')
-                  sf.write(f'| **LOW** | {counts["LOW"]} |\n')
-                  sf.write(f'| **MEDIUM** | {counts["MEDIUM"]} |\n')
-                  sf.write(f'| **HIGH** | {counts["HIGH"]} |\n')
-                  sf.write(f'| **CRITICAL** | {counts["CRITICAL"]} |\n\n')
-                  if counts['CRITICAL'] > 0:
-                      sf.write(f'> ⚠️ **Notice**: {counts["CRITICAL"]} critical vulnerabilities detected from upstream packages.\n\n')
-          " 
+        env:
+          TARGET: ${{ matrix.flavor.target }}
+        run: python3 scripts/evaluate_trivy.py
 
       - name: Upload Trivy Scan Results to GitHub Security Tab
         if: steps.check_updates.outputs.should_build == 'true'
@@ -416,7 +285,7 @@ jobs:
 
       - name: Upload Trivy Security Scan Artifact to Actions Run
         if: steps.check_updates.outputs.should_build == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-${{ matrix.flavor.target }}-sarif
           path: trivy-results-${{ matrix.flavor.target }}.sarif
@@ -455,15 +324,17 @@ jobs:
 
       - name: Workflow Run Summary
         run: |
-          echo "### Build & Publish Execution Summary for \`${{ matrix.flavor.target }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "* **Target:** \`${{ matrix.flavor.target }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "* **Trigger Event:** \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "* **Decision:** \`${{ steps.check_updates.outputs.reason }}\`" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.check_updates.outputs.should_build }}" = "true" ]; then
-            echo "* **Published SemVer Tag:** \`${{ steps.prebuild.outputs.real_semver_tag }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "* **Published Canonical Tag:** \`${{ steps.prebuild.outputs.canonical_tag }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "* **Published Short Tag:** \`${{ steps.prebuild.outputs.short_tag }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "* **Validation Status:** Passed all Blackwell sm_120 integrity checks." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "* **Status:** Skipped build — no upstream base or package updates found." >> $GITHUB_STEP_SUMMARY
-          fi
+          {
+            echo "### Build & Publish Execution Summary for \`${{ matrix.flavor.target }}\`"
+            echo "* **Target:** \`${{ matrix.flavor.target }}\`"
+            echo "* **Trigger Event:** \`${{ github.event_name }}\`"
+            echo "* **Decision:** \`${{ steps.check_updates.outputs.reason }}\`"
+            if [ "${{ steps.check_updates.outputs.should_build }}" = "true" ]; then
+              echo "* **Published SemVer Tag:** \`${{ steps.prebuild.outputs.real_semver_tag }}\`"
+              echo "* **Published Canonical Tag:** \`${{ steps.prebuild.outputs.canonical_tag }}\`"
+              echo "* **Published Short Tag:** \`${{ steps.prebuild.outputs.short_tag }}\`"
+              echo "* **Validation Status:** Passed all Blackwell sm_120 integrity checks."
+            else
+              echo "* **Status:** Skipped build — no upstream base or package updates found."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

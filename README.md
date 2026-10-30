@@ -24,15 +24,15 @@ Furthermore, advanced cinematic pipelines—such as stylized 3D animation, facia
 2. ComfyUI with a web of delicate video custom nodes (LivePortrait, LatentSync, VideoHelperSuite, AnimateDiff).
 3. 3D kinematic modeling engines (Blender 4.4 LTS) for procedural rigging, facial blendshapes, and geometric AOV passes (Depth, Normal, OpenPose).
 
-### The Solution: Lean Microservices Architecture Over a 19 GB Monolith
-Historically, bundling Blender and full AI stacks together creates bloated 19+ GB monolithic images. Monoliths suffer from severe drawbacks:
-* Users running lightweight text-to-image or custom node development are forced to download gigabytes of 3D modeling tools.
-* Heavy Blender render crashes or memory exhaustion can crash the ComfyUI web UI and active diffusion sessions.
-* Upgrading Blender requires rebuilding the entire multi-gigabyte PyTorch and node stack.
+### The Solution: 4-Tier Matrix — From Lean Microservices to Full Monolith
+This repository offers both deployment strategies, so you choose the right image for each workload:
+* **Lean microservices** (Recommended): `nodes` + `blender-worker` as separate services share a Docker volume and talk over an isolated bridge. Blender crashes can never kill the ComfyUI web UI.
+* **All-in-one monolith** (`full`): Single container with ComfyUI, all custom nodes *and* Blender 4.4 LTS pre-installed — ideal for single-GPU workstations where simplicity matters more than isolation.
 
-This repository solves these issues through a **3-Tier Lean Multi-Stage Matrix** and **Modular Docker Compose Orchestration**:
+This repository solves these issues through a **4-Tier Multi-Stage Image Matrix** and **Modular Docker Compose Orchestration**:
 * **ComfyUI Nodes Worker (~16 GB):** Runs the web interface and neural diffusion pipeline.
 * **Blender VFX Worker (~3.5 GB):** Lean, standalone headless Blender 4.4 LTS container with OptiX/CUDA acceleration.
+* **Full Studio Monolith (~19 GB):** All-in-one container with ComfyUI, all custom nodes, and Blender 4.4 LTS — for single-service deployments.
 * **Shared Render Bus (`passes_bus`):** High-speed inter-container volume bridging Blender render outputs directly into ComfyUI's input pipeline (`/workspace/passes` $\leftrightarrow$ `/opt/ComfyUI/input/passes`).
 * **Isolated Studio Network (`vfx-net`):** High-speed internal Docker bridge for API-driven automation.
 
@@ -56,13 +56,14 @@ This repository solves these issues through a **3-Tier Lean Multi-Stage Matrix**
 
 ---
 
-## 2. 3-Tier Multi-Stage Image Matrix
+## 2. 4-Tier Multi-Stage Image Matrix
 
 | Target Stage | Canonical Tag | Estimated Size | Included Components & Features | Primary Use Case |
 | :--- | :--- | :--- | :--- | :--- |
 | **`base`** | `base-cuda128-sm120` | ~12 GB | • Upstream `ai-dock/comfyui:latest-cuda`<br>• Official PyTorch Nightly CUDA 12.8 (`sm_120`)<br>• CUDA 12.8 driver runtime (`cudnn>=9.20`, `cublas>=12.8`)<br>• Clean ComfyUI core (0 custom nodes)<br>• Incompatible `xformers` uninstalled | Minimalist runtime, core testing, building custom node sets from scratch. |
 | **`nodes`** *(Default)* | `nodes-cuda128-sm120`<br>`latest` | ~16 GB | • All `base` components<br>• `ComfyUI-VideoHelperSuite` (pinned `593fcb07`)<br>• `ComfyUI-LivePortraitKJ` (Facial dynamics)<br>• `ComfyUI-LatentSyncWrapper` (Audio lip-sync)<br>• `ComfyUI-AnimateDiff-Evolved` (pinned `b3e508a`)<br>• `ComfyUI-3D-Pack` (Mesh & UV processing)<br>• Pinned ML packages (`diffusers<0.31`, `insightface`, `mediapipe`) | Production generative video, character animation, facial performance capture. |
-| **`blender-worker`** | `blender-worker`<br>`blender-4.4-worker` | ~3.5 GB | • Minimal `nvidia/cuda:12.8.0-base-ubuntu24.04`<br>• Official Blender 4.4.3 LTS Headless<br>• Native OptiX & CUDA Blackwell rendering<br>• `ComfyUI-BlenderAI-node` pre-installed<br>• Automated batch render runner (`blender_runner.py`) | Headless geometric pass generation (Depth, Normal, OpenPose), procedural 3D rigging. |
+| **`blender-worker`** | `blender-worker`<br>`blender-4.4-worker` | ~3.5 GB | • Minimal `nvidia/cuda:12.8.0-base-ubuntu24.04`<br>• Official Blender 4.4.3 LTS Headless<br>• Native OptiX & CUDA Blackwell rendering<br>• `ComfyUI-BlenderAI-node` pre-installed<br>• Automated batch render runner (`blender_runner.py`) | Headless geometric pass generation (Depth, Normal, OpenPose), procedural 3D rigging. Pairs with `nodes` via shared volume. |
+| **`full`** | `full-cuda128-sm120` | ~19 GB | • All `nodes` components<br>• Official Blender 4.4.3 LTS Headless<br>• `ComfyUI-BlenderAI-node` addon<br>• Native OptiX & CUDA Blackwell rendering | All-in-one single-container studio — ComfyUI + all custom nodes + Blender 4.4 in one image. Ideal for single-GPU workstations. |
 
 ---
 
@@ -99,6 +100,13 @@ Runs only the clean core ComfyUI container:
 ```bash
 docker compose --profile base up -d
 ```
+
+### Option E: Full Studio Monolith (All-In-One)
+Runs the single all-in-one container with ComfyUI + all nodes + Blender 4.4 LTS bundled together:
+```bash
+docker compose --profile monolith up -d
+```
+> **Note:** The `full` image bundles everything for single-GPU workstations where simplicity matters more than service isolation. For production studios with high availability requirements, the `modular` profile (Option A) is recommended.
 
 ### Custom Ports & Configuration
 To avoid port conflicts with host services, define custom ports in your environment:
@@ -163,6 +171,33 @@ services:
     networks:
       - vfx-net
 
+  comfyui-full:
+    image: ${COMFYUI_FULL_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:full-cuda128-sm120}
+    container_name: comfyui-full
+    profiles: ["monolith", "full"]
+    restart: unless-stopped
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - COMFYUI_FLAGS=--preview-method auto --normalvram
+      - WEB_ENABLE_AUTH=false
+      - CF_QUICK_TUNNELS=false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./data/models:/opt/ComfyUI/models
+      - ./data/output:/opt/ComfyUI/output
+      - ./data/blender_scenes:/workspace/scenes
+    networks:
+      - vfx-net
+
 volumes:
   passes_bus:
 
@@ -180,10 +215,12 @@ To guarantee reproducibility in production studio environments, images are publi
 1. **Immutable Exact SemVer Tags (Never overwritten):**
    * `base`: `ghcr.io/talshmuli/comfyui-blackwell-docker:v0.2.2-torch2.12.0.dev-cu128-base-YYYYMMDD-r<RUN_ID>`
    * `nodes`: `ghcr.io/talshmuli/comfyui-blackwell-docker:v0.2.2-torch2.12.0.dev-cu128-nodes-YYYYMMDD-r<RUN_ID>`
+   * `full`: `ghcr.io/talshmuli/comfyui-blackwell-docker:v0.2.2-torch2.12.0.dev-cu128-full-YYYYMMDD-r<RUN_ID>`
    * `blender-worker`: `ghcr.io/talshmuli/comfyui-blackwell-docker:blender4.4.3-cuda128-YYYYMMDD-r<RUN_ID>`
 2. **Canonical Series Tags (Updated per stable release):**
    * `base-cuda128-sm120`
    * `nodes-cuda128-sm120` (also alias `v0.2.2-cuda128-sm120`)
+   * `full-cuda128-sm120`
    * `blender-worker`
 3. **Latest Tag:**
    * `ghcr.io/talshmuli/comfyui-blackwell-docker:latest` points directly to the `nodes` production workstation.
@@ -194,18 +231,18 @@ To guarantee reproducibility in production studio environments, images are publi
 
 GitHub Actions workflow ([`.github/workflows/build.yml`](.github/workflows/build.yml)) runs bi-weekly on the 1st and 15th:
 * **Smart Change Detection:** Queries upstream `ai-dock/comfyui` base digest and PyTorch nightly index. Skips rebuilds in seconds when dependencies are unchanged.
-* **Parallel Matrix Builds:** Compiles `base`, `nodes`, and `blender-worker` targets simultaneously.
+* **Parallel 4-Way Matrix Builds:** Compiles `base`, `nodes`, `blender-worker`, and `full` targets simultaneously using GitHub Actions matrix strategy.
 * **Automated sm_120 & Core Validation:**
   - Verifies CUDA 12.8 runtime detection (`assert '12.8' in torch.version.cuda`).
   - Verifies Blackwell `sm_120` compute capability presence in kernel flags (`assert 'sm_120' in torch.__config__.show()`).
   - Confirms complete removal of legacy `xformers` to prevent ABI conflicts.
-  - Verifies registered node mappings (`VHS_VideoCombine`, `DownloadAndLoadLivePortraitModels`, `LatentSyncNode`, `AnimateDiff`).
-  - Validates Blender 4.4.3 headless execution and `ComfyUI-BlenderAI-node` addon installation.
+  - Verifies registered node mappings (`VHS_VideoCombine`, `DownloadAndLoadLivePortraitModels`, `LatentSyncNode`, `AnimateDiff`) for `nodes` and `full`.
+  - Validates Blender 4.4.3 headless execution and `ComfyUI-BlenderAI-node` addon installation for `blender-worker` and `full`.
 * **Enterprise Security Scanning:**
   - Audits container filesystem for leaked credentials, private keys, and `.env` files.
   - Full vulnerability and misconfiguration scan with **Aqua Security Trivy**.
   - Publishes SARIF reports to GitHub Security Tab via `github/codeql-action/upload-sarif@v4`.
-  - Generates downloadable SARIF artifacts via `actions/upload-artifact@v4`.
+  - Generates downloadable SARIF artifacts via `actions/upload-artifact@v7`.
 
 ---
 
@@ -236,6 +273,13 @@ docker exec blender-worker blender -b --version
 **Expected output:**
 ```text
 Blender 4.4.3 (hash 802179c51ccc built ...)
+```
+
+### 4. Verify Full Studio Image (Blender inside ComfyUI container):
+```bash
+docker exec comfyui-full blender -b --version
+docker exec comfyui-full /opt/environments/python/comfyui/bin/python -c \
+  "import execution, nodes; nodes.init_extra_nodes(); print('Total nodes:', len(nodes.NODE_CLASS_MAPPINGS))"
 ```
 
 ---

@@ -1,9 +1,10 @@
 # ==============================================================================
 # ComfyUI & Blender Docker Container Suite for NVIDIA Blackwell (RTX 5090 / 5080)
-# Multi-Stage Lean Architecture:
+# Multi-Stage Matrix Architecture:
 #   - base: ComfyUI Core + PyTorch Nightly CUDA 12.8 (sm_120) (~12 GB)
 #   - nodes: Generative Video & Character Animation Stack (~16 GB)
 #   - blender-worker: Lean Headless Blender 4.4 LTS OptiX/CUDA (~3.5 GB)
+#   - full: All-In-One Monolith (ComfyUI + All Nodes + Blender 4.4 LTS) (~19 GB)
 # ==============================================================================
 
 # ==============================================================================
@@ -182,3 +183,32 @@ RUN chmod +x /opt/scripts/blender_entrypoint.sh /opt/scripts/blender_runner.py
 
 ENTRYPOINT ["/opt/scripts/blender_entrypoint.sh"]
 CMD ["python3", "/opt/scripts/blender_runner.py"]
+
+# ==============================================================================
+# Stage 4: Full (Studio Monolith) - ComfyUI + All Nodes + Blender 4.4 LTS (~19 GB)
+# All-In-One Studio VFX container with ComfyUI core, custom nodes, and Blender
+# ==============================================================================
+FROM nodes AS full
+
+LABEL maintainer="Tal Shmuli" \
+      org.opencontainers.image.title="ComfyUI Blackwell Full Studio (RTX 5090 / 5080)" \
+      org.opencontainers.image.description="All-In-One ComfyUI & Blender 4.4 LTS VFX Studio for NVIDIA Blackwell RTX 5090 / 5080 (sm_120, CUDA 12.8)" \
+      org.opencontainers.image.authors="Tal Shmuli <70902336+talshmuli@users.noreply.github.com>" \
+      org.opencontainers.image.url="https://github.com/talshmuli/comfyui-blackwell-docker" \
+      org.opencontainers.image.source="https://github.com/talshmuli/comfyui-blackwell-docker" \
+      org.opencontainers.image.documentation="https://github.com/talshmuli/comfyui-blackwell-docker/blob/master/README.md" \
+      org.opencontainers.image.vendor="Tal Shmuli" \
+      org.opencontainers.image.licenses="MIT"
+
+# Fix Hadolint DL4006: Set the SHELL option -o pipefail before RUN with pipes
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+WORKDIR /opt/blender
+RUN curl -sL "https://download.blender.org/release/Blender4.4/blender-4.4.3-linux-x64.tar.xz" | \
+    tar -xJ -C /opt/blender --strip-components=1 && \
+    ln -s /opt/blender/blender /usr/local/bin/blender && \
+    mkdir -p /opt/blender/4.4/scripts/addons && \
+    git clone --depth=1 https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node
+
+WORKDIR /workspace
+

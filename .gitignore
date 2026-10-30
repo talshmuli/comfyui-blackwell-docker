@@ -5,3 +5,9 @@ models/
 output/
 .venv/
 __pycache__/
+
+# Design docs, plans, and superpowers
+docs/superpowers/
+docs/
+superpowers/
+
