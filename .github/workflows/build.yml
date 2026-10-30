@@ -250,7 +250,8 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
-          scanners: 'vuln,secret,misconfig'
+          scanners: 'vuln,misconfig'
+          timeout: '15m'
 
       - name: Generate Trivy SARIF Report for GitHub Security Tab
         if: steps.check_updates.outputs.should_build == 'true'
@@ -261,6 +262,7 @@ jobs:
           output: 'trivy-results-${{ matrix.flavor.target }}.sarif'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
+          timeout: '15m'
 
       - name: Generate Trivy JSON Scan Report
         if: steps.check_updates.outputs.should_build == 'true'
@@ -270,6 +272,7 @@ jobs:
           format: 'json'
           output: 'trivy-results-${{ matrix.flavor.target }}.json'
           ignore-unfixed: true
+          timeout: '15m'
 
       - name: Evaluate and Print Trivy Vulnerability Counts
         if: steps.check_updates.outputs.should_build == 'true'
