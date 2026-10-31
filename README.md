@@ -152,6 +152,7 @@ services:
     container_name: comfyui-nodes
     profiles: ["modular", "nodes"]
     restart: unless-stopped
+    shm_size: ${SHM_SIZE:-16gb}
     ports:
       - "${COMFYUI_BIND_IP:-0.0.0.0}:${COMFYUI_PORT:-8188}:8188"
     environment:
@@ -187,6 +188,7 @@ services:
     container_name: blender-worker
     profiles: ["modular", "dev"]
     restart: unless-stopped
+    shm_size: ${SHM_SIZE:-16gb}
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
@@ -209,11 +211,15 @@ services:
     container_name: comfyui-full
     profiles: ["monolith", "full"]
     restart: unless-stopped
+    shm_size: ${SHM_SIZE:-16gb}
     ports:
-      - "${COMFYUI_PORT:-8188}:8188"
+      - "${COMFYUI_BIND_IP:-0.0.0.0}:${COMFYUI_PORT:-8188}:8188"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+      - WORKSPACE_UID=${PUID:-1000}
+      - WORKSPACE_GID=${PGID:-1000}
+      - UMASK=${UMASK:-0022}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
       - COMFYUI_ARGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
@@ -338,9 +344,24 @@ To protect your workstation against accidental PyTorch downgrades when installin
 * The container establishes `/opt/environments/python/comfyui/constraints.txt` locking the exact nightly CUDA 12.8 `sm_120` PyTorch builds.
 * Enforced globally via `ENV PIP_CONSTRAINT`, preventing rogue node `requirements.txt` from replacing your Blackwell GPU runtime.
 
-### 3. VRAM Fragmentation Defense
+### 3. VRAM Fragmentation & Shared Memory Defense
 * Configured with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` across all ComfyUI services, eliminating memory fragmentation Out-Of-Memory (OOM) errors during rapid model switching.
 * Includes `--reserve-vram ${RESERVE_VRAM:-1.5}` to leave a safe headroom buffer for system display servers and external tasks.
+* Allocates `shm_size: ${SHM_SIZE:-16gb}` across containers, replacing Docker's default 64MB shared memory to prevent PyTorch `Bus error` crashes during high-resolution multi-frame video decoding.
+
+### 4. RTX 5090 (32GB) Workstation Optimization Guide
+
+The GeForce RTX 5090 provides 32GB of high-speed GDDR7 memory (~1,792 GB/s on a 512-bit bus) paired with higher consumer boost clocks than enterprise cards (e.g. RTX PRO 6000). For models that fit within 32GB VRAM, the RTX 5090 is actually faster during sampling than a PRO 6000. For extreme multi-model pipelines, optimal results are achieved by choosing the right precision:
+
+| Pipeline | Model Checkpoint | Text Encoder & Conditioning | VRAM Footprint | 5090 Optimization Strategy |
+| :--- | :--- | :--- | :--- | :--- |
+| **FLUX.1 (dev/schnell)** | `flux1-dev-fp8.safetensors` or `flux1-dev-Q8_0.gguf` | `t5xxl_fp8_e4m3fn` + `clip_l` | ~16–18 GB | **Zero offload needed.** Pipeline fits entirely in VRAM. Fastest sampling iterations. Set `COMFYUI_FLAGS=--highvram` or `--fast` in `.env` if avoiding swap delay. |
+| **Wan 2.1 (1.3B)** | `wan2.1_t2v_1.3B_bf16.safetensors` | Built-in CLIP / text enc | ~8–10 GB | **Full precision (BF16).** Fits comfortably in VRAM; blazing fast text-to-video prototyping. |
+| **Wan 2.1 (14B)** | `wan2.1_t2v_14B_fp8_e4m3fn.safetensors` or `wan2.1-i2v-14B-Q4_K_M.gguf` | `umt5_xxl_fp8_e4m3fn` | ~20–24 GB | **Dynamic Offload + Tiled VAE.** Default `--normalvram` automatically swaps text encoder out before DiT sampling begins. Enable **Tiled VAE Decode** (tile size 512) to prevent OOM during 81-frame latents decoding. |
+| **HunyuanVideo** | `hunyuan_video_720_cfgdistill_fp8_e4m3fn.safetensors` or `Q4_K_M.gguf` | `llava` / `mllama` + `clip_l` (FP8) | ~18–22 GB | **Native PyTorch SDPA.** Blackwell `sm_120` runs scaled dot product attention without memory spikes; keep `--normalvram` active. |
+
+> [!TIP]
+> **FP8 & GGUF vs FP16 Visual Quality:** On Blackwell 5th-generation Tensor Cores, FP8 (`e4m3fn`) and GGUF (`Q8_0`/`Q4_K_M`) quantization preserve practically indistinguishable image fidelity and text alignment compared to FP16, while cutting memory footprint by 40–60%. Keep FP16 reserved for cards with $\ge$ 48–96GB VRAM.
 
 ---
 
