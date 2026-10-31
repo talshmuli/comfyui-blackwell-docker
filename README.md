@@ -56,7 +56,24 @@ This repository solves these issues through a **4-Tier Multi-Stage Image Matrix*
 
 ---
 
-## 2. 4-Tier Multi-Stage Image Matrix
+## 2. Who This Bundle Is For (and What It Is NOT)
+
+### 🎯 Who Will Enjoy This Bundle
+* **NVIDIA Blackwell GPU Owners (RTX 5090 / 5080 / 5070):** Creators and engineers seeking native hardware `sm_120` execution with zero CUDA kernel mismatches or manual compilation headaches.
+* **Generative Video & Digital Human Artists:** Anyone building facial performance reenactment, temporal diffusion, and audio-driven lip-sync pipelines (`LivePortrait`, `LatentSync`, `VideoHelperSuite`, `AnimateDiff-Evolved`).
+* **3D Animation & Technical VFX Studios:** Artists integrating 3D spatial kinematics from Blender 4.4 LTS (depth passes, normals, OpenPose AOVs) directly into ComfyUI neural pipelines.
+* **Quantized Model Practitioners:** Workstations running heavy 12B+ diffusion models (FLUX.1 Dev/Schnell, SD 3.5, Wan 2.1, HunyuanVideo) at 4-bit, 5-bit, or 8-bit precision using native `ComfyUI-GGUF` and FP8.
+* **Security-Conscious Studios & Homelabs:** Teams requiring verified container security (0 Critical CVEs, Pillow 13 source compilation, automated Aqua Trivy audits, and locked PyTorch kernels via `PIP_CONSTRAINT`).
+
+### 🚫 What This Bundle Is NOT For
+* **Non-NVIDIA or Legacy Hardware:** Not intended for AMD GPUs (ROCm), Apple Silicon (MPS), Intel GPUs (ARC), or older pre-Turing NVIDIA architectures (GTX 10-series or earlier).
+* **Experimental / Fragile Third-Party C++ Formats:** Not for experimental proprietary engines (such as MIT Nunchaku SVDQuant) that require hardcoded C++ wheels tied to specific PyTorch builds or force lowering container security (`security_level = weak`). We prioritize industry-standard, rock-solid **Native FP8 and GGUF**.
+* **Global Experimental Attention Kernel Overrides:** We intentionally avoid forcing global experimental attention kernels (like `--use-sage-attention`) that are known to produce black frames on video models like Wan 2.1 and SD 1.5.
+* **Barebones "Clean Slate" Minimalists:** If you only need an empty 50MB Python container and prefer manually downloading every node and debugging dependency conflicts from scratch, the pre-configured video/3D workstation may be heavier than what you need (though our `base` profile provides a clean starting point).
+
+---
+
+## 3. 4-Tier Multi-Stage Image Matrix
 
 | Target Stage | Canonical Tag | Estimated Size | Included Components & Features | Primary Use Case |
 | :--- | :--- | :--- | :--- | :--- |
@@ -67,7 +84,7 @@ This repository solves these issues through a **4-Tier Multi-Stage Image Matrix*
 
 ---
 
-## 3. Quickstart & Docker Compose Orchestration
+## 4. Quickstart & Docker Compose Orchestration
 
 ### Prerequisites
 * NVIDIA Driver $\ge$ 570.xx installed on the host.
@@ -124,7 +141,7 @@ PUID=1000 PGID=1000 docker compose --profile modular up -d
 
 ---
 
-## 4. Compose Configuration Specification
+## 5. Compose Configuration Specification
 
 The complete production orchestration definition (`docker-compose.yml`):
 
@@ -227,7 +244,7 @@ networks:
 
 ---
 
-## 5. Strict Semantic Versioning & Immutability
+## 6. Strict Semantic Versioning & Immutability
 
 To guarantee reproducibility in production studio environments, images are published with strict version tagging:
 
@@ -246,7 +263,7 @@ To guarantee reproducibility in production studio environments, images are publi
 
 ---
 
-## 6. Automated CI Pipeline & Verification
+## 7. Automated CI Pipeline & Verification
 
 GitHub Actions workflow ([`.github/workflows/build.yml`](.github/workflows/build.yml)) runs bi-weekly on the 1st and 15th:
 * **Smart Change Detection:** Queries upstream `ai-dock/comfyui` base digest and PyTorch nightly index. Skips rebuilds in seconds when dependencies are unchanged.
@@ -265,7 +282,7 @@ GitHub Actions workflow ([`.github/workflows/build.yml`](.github/workflows/build
 
 ---
 
-## 7. Verifying Blackwell GPU Acceleration & Blender
+## 8. Verifying Blackwell GPU Acceleration & Blender
 
 ### 1. Verify PyTorch Blackwell sm_120 Execution:
 ```bash
@@ -309,7 +326,7 @@ docker exec comfyui-nodes /opt/environments/python/comfyui/bin/python -c \
 
 ---
 
-## 8. Quantized Inference & Production Hardening
+## 9. Quantized Inference & Production Hardening
 
 ### 1. High-Performance Quantized Models (GGUF & Native FP8)
 The container suite includes built-in acceleration for next-gen 12B+ diffusion models (such as **FLUX.1**, **SD 3.5**, **Wan 2.1**, and **HunyuanVideo**):
@@ -327,7 +344,7 @@ To protect your workstation against accidental PyTorch downgrades when installin
 
 ---
 
-## 9. Acknowledgements & Upstream Projects
+## 10. Acknowledgements & Upstream Projects
 
 * **[ComfyUI](https://github.com/comfyanonymous/ComfyUI)** by comfyanonymous — Node-based diffusion architecture.
 * **[ai-dock/comfyui](https://github.com/ai-dock/comfyui)** by Rob Ballantyne — Multi-environment container runtime and process supervision.
@@ -343,6 +360,6 @@ To protect your workstation against accidental PyTorch downgrades when installin
 
 ---
 
-## 10. License
+## 11. License
 
 This project is licensed under the [MIT License](LICENSE). ComfyUI, PyTorch, Blender, and upstream packages are licensed under their respective open-source licenses.
