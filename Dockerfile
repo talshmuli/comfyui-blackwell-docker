@@ -50,6 +50,7 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         --force-reinstall --no-deps --pre \
         torch torchvision torchaudio \
         --index-url https://download.pytorch.org/whl/nightly/cu128 && \
+    /opt/environments/python/comfyui/bin/pip freeze | grep -E '^(torch|torchvision|torchaudio)==' > /opt/environments/python/comfyui/constraints.txt && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         nvidia-cufile-cu12 \
         nvidia-cusparselt-cu12 \
@@ -80,6 +81,9 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         "anyio>=4.6.0" && \
     /opt/environments/python/comfyui/bin/pip uninstall -y xformers
 
+# Enforce pip constraints globally to prevent runtime custom node installs from downgrading PyTorch
+ENV PIP_CONSTRAINT=/opt/environments/python/comfyui/constraints.txt
+
 WORKDIR /workspace
 
 # ==============================================================================
@@ -101,15 +105,17 @@ WORKDIR /opt/ComfyUI/custom_nodes
 # 3. LatentSyncWrapper: High-fidelity audio-conditioned latent phoneme lip-sync
 # 4. AnimateDiff-Evolved: Industry standard for temporally coherent neural animation
 # 5. ComfyUI-3D-Pack: 3D mesh rendering, UV processing, and neural reconstruction
+# 6. ComfyUI-GGUF: Fast quantized inference for FLUX, SD3.5, and Wan2.1
 RUN git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
     git -C ComfyUI-VideoHelperSuite checkout 593fcb07 && \
     git clone --depth=1 https://github.com/kijai/ComfyUI-LivePortraitKJ.git && \
     git clone --depth=1 https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper.git && \
     git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git && \
     git -C ComfyUI-AnimateDiff-Evolved checkout b3e508a && \
-    git clone --depth=1 https://github.com/MrForExample/ComfyUI-3D-Pack.git
+    git clone --depth=1 https://github.com/MrForExample/ComfyUI-3D-Pack.git && \
+    git clone --depth=1 https://github.com/city96/ComfyUI-GGUF.git
 
-# Install Python dependencies for video generation and portrait animation,
+# Install Python dependencies for video generation, portrait animation, and GGUF quantization,
 # strictly protecting PyTorch nightly CUDA 12.8 Blackwell kernels from overwrite
 RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         "numpy<2.0.0,>=1.24.0" \
@@ -128,7 +134,9 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         onnxruntime-gpu \
         pyhocon \
         plyfile \
-        trimesh && \
+        trimesh \
+        "gguf>=0.13.0" \
+        sentencepiece && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --no-deps \
         "diffusers>=0.30.0,<0.31.0" \
         accelerate \

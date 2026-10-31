@@ -52,6 +52,10 @@ def scan_custom_nodes_in_container(container_name: str = "comfyui"):
     print(f"\n{BOLD}=== 1. Third-Party Custom Nodes Supply Chain & AI Injection Scan ==={RESET}")
     print(f"Target Container: {container_name} (/opt/ComfyUI/custom_nodes)")
     
+    if not shutil.which("docker"):
+        log_warn("Docker CLI not available to inspect running containers.")
+        return 0, 0
+
     # Check if container is running
     res = subprocess.run(["docker", "ps", "-q", "-f", f"name={container_name}"], capture_output=True, text=True)
     if not res.stdout.strip():

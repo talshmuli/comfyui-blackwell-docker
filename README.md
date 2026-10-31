@@ -61,9 +61,9 @@ This repository solves these issues through a **4-Tier Multi-Stage Image Matrix*
 | Target Stage | Canonical Tag | Estimated Size | Included Components & Features | Primary Use Case |
 | :--- | :--- | :--- | :--- | :--- |
 | **`base`** | `base-cuda128-sm120` | ~12 GB | • Upstream `ai-dock/comfyui:latest-cuda`<br>• Official PyTorch Nightly CUDA 12.8 (`sm_120`)<br>• CUDA 12.8 driver runtime (`cudnn>=9.20`, `cublas>=12.8`)<br>• Clean ComfyUI core (0 custom nodes)<br>• Incompatible `xformers` uninstalled | Minimalist runtime, core testing, building custom node sets from scratch. |
-| **`nodes`** *(Default)* | `nodes-cuda128-sm120`<br>`latest` | ~16 GB | • All `base` components<br>• `ComfyUI-VideoHelperSuite` (pinned `593fcb07`)<br>• `ComfyUI-LivePortraitKJ` (Facial dynamics)<br>• `ComfyUI-LatentSyncWrapper` (Audio lip-sync)<br>• `ComfyUI-AnimateDiff-Evolved` (pinned `b3e508a`)<br>• `ComfyUI-3D-Pack` (Mesh & UV processing)<br>• Pinned ML packages (`diffusers<0.31`, `insightface`, `mediapipe`) | Production generative video, character animation, facial performance capture. |
+| **`nodes`** *(Default)* | `nodes-cuda128-sm120`<br>`latest` | ~16 GB | • All `base` components<br>• `ComfyUI-VideoHelperSuite` (pinned `593fcb07`)<br>• `ComfyUI-LivePortraitKJ` (Facial dynamics)<br>• `ComfyUI-LatentSyncWrapper` (Audio lip-sync)<br>• `ComfyUI-AnimateDiff-Evolved` (pinned `b3e508a`)<br>• `ComfyUI-3D-Pack` (Mesh & UV processing)<br>• `ComfyUI-GGUF` (Quantized FLUX, SD3.5, Wan2.1 & Hunyuan)<br>• Pinned ML packages (`diffusers<0.31`, `insightface`, `mediapipe`, `gguf`) | Production generative video, character animation, facial performance capture, quantized FLUX/video diffusion. |
 | **`blender-worker`** | `blender-worker`<br>`blender-4.4-worker` | ~3.5 GB | • Minimal `nvidia/cuda:12.8.0-base-ubuntu24.04`<br>• Official Blender 4.4.3 LTS Headless<br>• Native OptiX & CUDA Blackwell rendering<br>• `ComfyUI-BlenderAI-node` pre-installed<br>• Automated batch render runner (`blender_runner.py`) | Headless geometric pass generation (Depth, Normal, OpenPose), procedural 3D rigging. Pairs with `nodes` via shared volume. |
-| **`full`** | `full-cuda128-sm120` | ~19 GB | • All `nodes` components<br>• Official Blender 4.4.3 LTS Headless<br>• `ComfyUI-BlenderAI-node` addon<br>• Native OptiX & CUDA Blackwell rendering | All-in-one single-container studio — ComfyUI + all custom nodes + Blender 4.4 in one image. Ideal for single-GPU workstations. |
+| **`full`** | `full-cuda128-sm120` | ~19 GB | • All `nodes` components (Video, Portrait, 3D, and GGUF)<br>• Official Blender 4.4.3 LTS Headless<br>• `ComfyUI-BlenderAI-node` addon<br>• Native OptiX & CUDA Blackwell rendering | All-in-one single-container studio — ComfyUI + all custom nodes + Blender 4.4 in one image. Ideal for single-GPU workstations. |
 
 ---
 
@@ -132,7 +132,10 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - COMFYUI_FLAGS=--preview-method auto --normalvram
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
+      - COMFYUI_ARGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
+      - COMFYUI_FLAGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
       - WEB_ENABLE_AUTH=false
       - CF_QUICK_TUNNELS=false
     deploy:
@@ -146,6 +149,8 @@ services:
       - ./data/models:/opt/ComfyUI/models
       - ./data/output:/opt/ComfyUI/output
       - passes_bus:/opt/ComfyUI/input/passes
+      # Optional: Mount additional community custom nodes individually to preserve pre-installed nodes:
+      # - ./data/extra_custom_nodes/my-node:/opt/ComfyUI/custom_nodes/my-node
     networks:
       - vfx-net
 
@@ -181,7 +186,10 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - COMFYUI_FLAGS=--preview-method auto --normalvram
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
+      - COMFYUI_ARGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
+      - COMFYUI_FLAGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
       - WEB_ENABLE_AUTH=false
       - CF_QUICK_TUNNELS=false
     deploy:
@@ -282,14 +290,39 @@ docker exec comfyui-full /opt/environments/python/comfyui/bin/python -c \
   "import execution, nodes; nodes.init_extra_nodes(); print('Total nodes:', len(nodes.NODE_CLASS_MAPPINGS))"
 ```
 
+### 5. Verify ComfyUI-GGUF Quantization Engine:
+```bash
+docker exec comfyui-nodes /opt/environments/python/comfyui/bin/python -c \
+  "import execution, nodes; nodes.init_extra_nodes(); assert any('GGUF' in k for k in nodes.NODE_CLASS_MAPPINGS); print('✔ ComfyUI-GGUF nodes verified!')"
+```
+
 ---
 
-## 8. Acknowledgements & Upstream Projects
+## 8. Quantized Inference & Production Hardening
+
+### 1. High-Performance Quantized Models (GGUF & Native FP8)
+The container suite includes built-in acceleration for next-gen 12B+ diffusion models (such as **FLUX.1**, **SD 3.5**, **Wan 2.1**, and **HunyuanVideo**):
+* **Native FP8 (Official ComfyUI Standard):** Download official FP8 diffusion models (`flux1-dev-fp8.safetensors`) directly into `./data/models/diffusion_models/` (or `unet/`). Zero extra nodes needed; runs natively with ~12–16GB VRAM.
+* **GGUF (`ComfyUI-GGUF`):** Pre-installed in `nodes` and `full` stages. Allows loading 4-bit, 5-bit, and 8-bit quantized UNet/DiT models (e.g. `flux1-dev-Q4_K_S.gguf`) from `./data/models/unet/` using the **`Unet Loader (GGUF)`** node, enabling fast inference on 16GB cards with low memory footprints.
+
+### 2. PyTorch Blackwell Version Guardrail (`PIP_CONSTRAINT`)
+To protect your workstation against accidental PyTorch downgrades when installing community custom nodes via ComfyUI Manager:
+* The container establishes `/opt/environments/python/comfyui/constraints.txt` locking the exact nightly CUDA 12.8 `sm_120` PyTorch builds.
+* Enforced globally via `ENV PIP_CONSTRAINT`, preventing rogue node `requirements.txt` from replacing your Blackwell GPU runtime.
+
+### 3. VRAM Fragmentation Defense
+* Configured with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` across all ComfyUI services, eliminating memory fragmentation Out-Of-Memory (OOM) errors during rapid model switching.
+* Includes `--reserve-vram ${RESERVE_VRAM:-1.5}` to leave a safe headroom buffer for system display servers and external tasks.
+
+---
+
+## 9. Acknowledgements & Upstream Projects
 
 * **[ComfyUI](https://github.com/comfyanonymous/ComfyUI)** by comfyanonymous — Node-based diffusion architecture.
 * **[ai-dock/comfyui](https://github.com/ai-dock/comfyui)** by Rob Ballantyne — Multi-environment container runtime and process supervision.
 * **[PyTorch](https://github.com/pytorch/pytorch)** — Official nightly CUDA 12.8 builds with native Blackwell `sm_120` compute kernels.
 * **[Blender](https://www.blender.org/)** — Headless 3D rigging, procedural animation, and AOV pass rendering.
+* **[ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF)** by City96 — High-performance quantized diffusion inference.
 * **[ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite)** by Kosinkadink.
 * **[ComfyUI-LivePortraitKJ](https://github.com/kijai/ComfyUI-LivePortraitKJ)** by Kijai.
 * **[ComfyUI-LatentSyncWrapper](https://github.com/ShmuelRonen/ComfyUI-LatentSyncWrapper)** by Shmuel Ronen.
@@ -299,6 +332,6 @@ docker exec comfyui-full /opt/environments/python/comfyui/bin/python -c \
 
 ---
 
-## 9. License
+## 10. License
 
 This project is licensed under the [MIT License](LICENSE). ComfyUI, PyTorch, Blender, and upstream packages are licensed under their respective open-source licenses.

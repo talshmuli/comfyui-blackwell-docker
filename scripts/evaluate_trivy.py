@@ -34,6 +34,7 @@ CUSTOM_NODE_DEPS = {
         "torchmetrics",
     ],
     "Custom Node: ComfyUI-LatentSyncWrapper": [],
+    "Custom Node: ComfyUI-GGUF": ["gguf", "sentencepiece"],
     "Blender Addon: ComfyUI-BlenderAI-node": [],
 }
 
@@ -63,6 +64,9 @@ COMPONENT_DESCRIPTIONS = {
     ),
     "Custom Node: ComfyUI-LatentSyncWrapper": (
         "Audio-conditioned lip-sync neural model wrapper"
+    ),
+    "Custom Node: ComfyUI-GGUF": (
+        "Quantized GGUF model loader & inference engine (gguf, sentencepiece)"
     ),
     "Blender Addon: ComfyUI-BlenderAI-node": (
         "Procedural Blender-ComfyUI socket bridge addon"
@@ -95,6 +99,8 @@ def categorize_location(uri, pkg_name=""):
     return "Custom Node: ComfyUI-AnimateDiff-Evolved"
   if "custom_nodes/comfyui-latentsyncwrapper" in u:
     return "Custom Node: ComfyUI-LatentSyncWrapper"
+  if "custom_nodes/comfyui-gguf" in u:
+    return "Custom Node: ComfyUI-GGUF"
   if "comfyui-blenderai-node" in u:
     return "Blender Addon: ComfyUI-BlenderAI-node"
 

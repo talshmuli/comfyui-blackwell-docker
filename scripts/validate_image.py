@@ -73,6 +73,7 @@ def validate_custom_nodes():
     assert "DownloadAndLoadLivePortraitModels" in nodes.NODE_CLASS_MAPPINGS, "FAIL: LivePortrait missing"
     assert "LatentSyncNode" in nodes.NODE_CLASS_MAPPINGS, "FAIL: LatentSync missing"
     assert any("AnimateDiff" in k for k in nodes.NODE_CLASS_MAPPINGS), "FAIL: AnimateDiff missing"
+    assert any("GGUF" in k for k in nodes.NODE_CLASS_MAPPINGS), "FAIL: ComfyUI-GGUF nodes missing"
     print("✔ All production custom nodes registered successfully!")
 
 
