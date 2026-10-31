@@ -30,15 +30,17 @@ USER root
 # Fix Hadolint DL4006: Set the SHELL option -o pipefail before RUN with pipes
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Apply official Ubuntu security updates and eliminate dormant daemons (Caddy, Syncthing, Cloudflared)
-# hadolint ignore=DL3008,DL3015
+# Apply official Ubuntu security updates, patch npm/tar, and eliminate dormant daemons (Caddy, Syncthing, Cloudflared)
+# hadolint ignore=DL3008,DL3015,DL3016
 RUN apt-get update && apt-get upgrade -y && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/* && \
     rm -rf /opt/caddy /opt/syncthing /usr/bin/cloudflared \
            /opt/environments/python/jupyter \
            /opt/environments/python/serviceportal \
-           /opt/environments/python/api
+           /opt/environments/python/api && \
+    export PATH="/opt/nvm/versions/node/v22.2.0/bin:$PATH" && \
+    npm install -g npm@10.9.9
 
 # Install official PyTorch, torchvision, and torchaudio nightly builds compiled
 # with native CUDA 12.8 and Blackwell sm_120 compute capability kernels.
@@ -59,7 +61,8 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         "nvidia-cuda-nvrtc-cu12>=12.8" \
         "nvidia-nccl-cu12>=2.29" && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
-        "pillow>=10.4.0" \
+        "pillow>=12.0.0,<13.0.0" \
+        "aiohttp>=3.13.4" \
         "gitpython>=3.1.44" \
         "pyjwt>=2.9.0" \
         "certifi>=2024.8.30" \
@@ -123,7 +126,10 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         torchmetrics \
         onnx2torch \
         facenet-pytorch \
-        kiui
+        kiui && \
+    /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
+        "pillow>=12.0.0,<13.0.0" \
+        "aiohttp>=3.13.4"
 
 WORKDIR /workspace
 
@@ -172,7 +178,8 @@ RUN curl -sL "https://download.blender.org/release/Blender4.4/blender-4.4.3-linu
     tar -xJ -C /opt/blender --strip-components=1 && \
     ln -s /opt/blender/blender /usr/local/bin/blender && \
     mkdir -p /opt/blender/4.4/scripts/addons && \
-    git clone --depth=1 https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node
+    git clone --depth=1 https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node && \
+    /opt/blender/4.4/python/bin/python3.11 -m pip install --no-cache-dir --upgrade certifi
 
 WORKDIR /workspace
 RUN mkdir -p /workspace/scenes /workspace/passes /opt/scripts
@@ -224,7 +231,8 @@ RUN curl -sL "https://download.blender.org/release/Blender4.4/blender-4.4.3-linu
     tar -xJ -C /opt/blender --strip-components=1 && \
     ln -s /opt/blender/blender /usr/local/bin/blender && \
     mkdir -p /opt/blender/4.4/scripts/addons && \
-    git clone --depth=1 https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node
+    git clone --depth=1 https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node && \
+    /opt/blender/4.4/python/bin/python3.11 -m pip install --no-cache-dir --upgrade certifi
 
 WORKDIR /workspace
 
