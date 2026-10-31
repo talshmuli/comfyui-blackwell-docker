@@ -30,9 +30,10 @@ USER root
 # Fix Hadolint DL4006: Set the SHELL option -o pipefail before RUN with pipes
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Apply official Ubuntu security updates, patch npm/tar, and eliminate dormant daemons (Caddy, Syncthing, Cloudflared)
+# Apply official Ubuntu security updates, patch npm/tar, install libjpeg-dev for Pillow, and eliminate dormant daemons
 # hadolint ignore=DL3008,DL3015,DL3016
 RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends libjpeg-dev && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/* && \
     rm -rf /opt/caddy /opt/syncthing /usr/bin/cloudflared \
@@ -61,8 +62,12 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         "nvidia-cuda-runtime-cu12>=12.8" \
         "nvidia-cuda-nvrtc-cu12>=12.8" \
         "nvidia-nccl-cu12>=2.29" && \
+    mkdir -p /tmp/pillow-build && \
+    curl -sL "https://files.pythonhosted.org/packages/source/p/pillow/pillow-13.0.0.tar.gz" | tar -xz -C /tmp/pillow-build --strip-components=1 && \
+    sed -i 's/requires-python = ">=3.11"/requires-python = ">=3.10"/g' /tmp/pillow-build/pyproject.toml && \
+    /opt/environments/python/comfyui/bin/pip install --no-cache-dir /tmp/pillow-build && \
+    rm -rf /tmp/pillow-build && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
-        "pillow>=12.0.0,<13.0.0" \
         "aiohttp>=3.13.4" \
         "pip>=24.0" \
         "setuptools>=70.0.0" \
@@ -132,7 +137,7 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         facenet-pytorch \
         kiui && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
-        "pillow>=12.0.0,<13.0.0" \
+        "pillow>=13.0.0" \
         "aiohttp>=3.13.4" \
         "jinja2>=3.1.5"
 
