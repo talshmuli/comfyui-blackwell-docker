@@ -38,7 +38,8 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /opt/caddy /opt/syncthing /usr/bin/cloudflared \
            /opt/environments/python/jupyter \
            /opt/environments/python/serviceportal \
-           /opt/environments/python/api && \
+           /opt/environments/python/api \
+           /opt/environments/python/python_310 && \
     export PATH="/opt/nvm/versions/node/v22.2.0/bin:$PATH" && \
     npm install -g npm@10.9.9
 
@@ -63,6 +64,9 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
         "pillow>=12.0.0,<13.0.0" \
         "aiohttp>=3.13.4" \
+        "pip>=24.0" \
+        "setuptools>=70.0.0" \
+        "jinja2>=3.1.5" \
         "gitpython>=3.1.44" \
         "pyjwt>=2.9.0" \
         "certifi>=2024.8.30" \
@@ -129,7 +133,8 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         kiui && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
         "pillow>=12.0.0,<13.0.0" \
-        "aiohttp>=3.13.4"
+        "aiohttp>=3.13.4" \
+        "jinja2>=3.1.5"
 
 WORKDIR /workspace
 
@@ -179,7 +184,7 @@ RUN curl -sL "https://download.blender.org/release/Blender4.4/blender-4.4.3-linu
     ln -s /opt/blender/blender /usr/local/bin/blender && \
     mkdir -p /opt/blender/4.4/scripts/addons && \
     git clone --depth=1 https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node && \
-    /opt/blender/4.4/python/bin/python3.11 -m pip install --no-cache-dir --upgrade certifi
+    /opt/blender/4.4/python/bin/python3.11 -m pip install --no-cache-dir --upgrade certifi urllib3 requests setuptools pip
 
 WORKDIR /workspace
 RUN mkdir -p /workspace/scenes /workspace/passes /opt/scripts
@@ -232,7 +237,7 @@ RUN curl -sL "https://download.blender.org/release/Blender4.4/blender-4.4.3-linu
     ln -s /opt/blender/blender /usr/local/bin/blender && \
     mkdir -p /opt/blender/4.4/scripts/addons && \
     git clone --depth=1 https://github.com/AIGODLIKE/ComfyUI-BlenderAI-node.git /opt/blender/4.4/scripts/addons/ComfyUI-BlenderAI-node && \
-    /opt/blender/4.4/python/bin/python3.11 -m pip install --no-cache-dir --upgrade certifi
+    /opt/blender/4.4/python/bin/python3.11 -m pip install --no-cache-dir --upgrade certifi urllib3 requests setuptools pip
 
 WORKDIR /workspace
 

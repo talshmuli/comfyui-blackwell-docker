@@ -292,8 +292,10 @@ jobs:
         if: steps.check_updates.outputs.should_build == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: trivy-${{ matrix.flavor.target }}-sarif
-          path: trivy-results-${{ matrix.flavor.target }}.sarif
+          name: trivy-${{ matrix.flavor.target }}-reports
+          path: |
+            trivy-results-${{ matrix.flavor.target }}.sarif
+            trivy-results-${{ matrix.flavor.target }}.json
           retention-days: 30
 
       - name: Tag and Push Docker Image
