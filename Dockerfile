@@ -62,10 +62,11 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         "nvidia-cuda-runtime-cu12>=12.8" \
         "nvidia-cuda-nvrtc-cu12>=12.8" \
         "nvidia-nccl-cu12>=2.29" && \
-    mkdir -p /tmp/pillow-build && \
+    mkdir -p /opt/wheels /tmp/pillow-build && \
     curl -sL "https://files.pythonhosted.org/packages/source/p/pillow/pillow-13.0.0.tar.gz" | tar -xz -C /tmp/pillow-build --strip-components=1 && \
     sed -i 's/requires-python = ">=3.11"/requires-python = ">=3.10"/g' /tmp/pillow-build/pyproject.toml && \
-    /opt/environments/python/comfyui/bin/pip install --no-cache-dir /tmp/pillow-build && \
+    /opt/environments/python/comfyui/bin/pip wheel --no-cache-dir --no-deps -w /opt/wheels /tmp/pillow-build && \
+    /opt/environments/python/comfyui/bin/pip install --no-cache-dir --no-deps /opt/wheels/pillow-13.0.0-*.whl && \
     rm -rf /tmp/pillow-build && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
         "aiohttp>=3.13.4" \
@@ -136,8 +137,9 @@ RUN /opt/environments/python/comfyui/bin/pip install --no-cache-dir \
         onnx2torch \
         facenet-pytorch \
         kiui && \
+    /opt/environments/python/comfyui/bin/pip install --no-cache-dir --no-deps \
+        /opt/wheels/pillow-13.0.0-*.whl && \
     /opt/environments/python/comfyui/bin/pip install --no-cache-dir --upgrade \
-        "pillow>=13.0.0" \
         "aiohttp>=3.13.4" \
         "jinja2>=3.1.5"
 
