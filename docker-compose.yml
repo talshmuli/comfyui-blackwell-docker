@@ -3,7 +3,7 @@ services:
   # ComfyUI Production Workstation (Video, Lip-Sync, & Custom Nodes)
   # ============================================================================
   comfyui:
-    image: ${COMFYUI_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:nodes-cuda128-sm120}
+    image: ${COMFYUI_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-bundle:nodes-cuda128-sm120}
     container_name: ${COMFYUI_CONTAINER_NAME:-comfyui-nodes}
     profiles: ["modular", "nodes"]
     restart: unless-stopped
@@ -12,7 +12,9 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - COMFYUI_FLAGS=--preview-method auto --normalvram
+      - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
+      - COMFYUI_ARGS=--listen 0.0.0.0 ${COMFYUI_FLAGS:---preview-method auto --normalvram}
+      - COMFYUI_FLAGS=--listen 0.0.0.0 ${COMFYUI_FLAGS:---preview-method auto --normalvram}
       - WEB_ENABLE_AUTH=false
       - CF_QUICK_TUNNELS=false
     deploy:
@@ -33,7 +35,7 @@ services:
   # ComfyUI Lean Core (Base PyTorch Nightly sm_120 Runtime - Zero Custom Nodes)
   # ============================================================================
   comfyui-base:
-    image: ${COMFYUI_BASE_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:base-cuda128-sm120}
+    image: ${COMFYUI_BASE_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-bundle:base-cuda128-sm120}
     container_name: ${COMFYUI_BASE_CONTAINER_NAME:-comfyui-base}
     profiles: ["dev", "base"]
     restart: unless-stopped
@@ -42,7 +44,9 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - COMFYUI_FLAGS=--preview-method auto --normalvram
+      - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
+      - COMFYUI_ARGS=--listen 0.0.0.0 ${COMFYUI_FLAGS:---preview-method auto --normalvram}
+      - COMFYUI_FLAGS=--listen 0.0.0.0 ${COMFYUI_FLAGS:---preview-method auto --normalvram}
       - WEB_ENABLE_AUTH=false
       - CF_QUICK_TUNNELS=false
     deploy:
@@ -63,7 +67,7 @@ services:
   # Blender 4.4 LTS Headless Pass Renderer (OptiX / CUDA sm_120 Worker)
   # ============================================================================
   blender-worker:
-    image: ${BLENDER_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:blender-worker}
+    image: ${BLENDER_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-bundle:blender-worker}
     container_name: ${BLENDER_CONTAINER_NAME:-blender-worker}
     profiles: ["modular", "dev"]
     restart: unless-stopped
@@ -88,7 +92,7 @@ services:
   # ComfyUI Full Studio (All-In-One Monolith: ComfyUI + Nodes + Blender 4.4 LTS)
   # ============================================================================
   comfyui-full:
-    image: ${COMFYUI_FULL_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:full-cuda128-sm120}
+    image: ${COMFYUI_FULL_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-bundle:full-cuda128-sm120}
     container_name: ${COMFYUI_FULL_CONTAINER_NAME:-comfyui-full}
     profiles: ["monolith", "full"]
     restart: unless-stopped
@@ -97,7 +101,9 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      - COMFYUI_FLAGS=--preview-method auto --normalvram
+      - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
+      - COMFYUI_ARGS=--listen 0.0.0.0 ${COMFYUI_FLAGS:---preview-method auto --normalvram}
+      - COMFYUI_FLAGS=--listen 0.0.0.0 ${COMFYUI_FLAGS:---preview-method auto --normalvram}
       - WEB_ENABLE_AUTH=false
       - CF_QUICK_TUNNELS=false
     deploy:

@@ -122,7 +122,7 @@ print(json.dumps(findings))
         log_warn(f"Failed scanning custom nodes in container: {e}")
         return 0, 0
 
-def run_trivy_container_scan(image_name: str = "ghcr.io/talshmuli/comfyui-blackwell-docker:latest"):
+def run_trivy_container_scan(image_name: str = "ghcr.io/talshmuli/comfyui-blackwell-bundle:latest"):
     print(f"\n{BOLD}=== 2. Aqua Security Trivy Container Vulnerability & Secret Scan ==={RESET}")
     print(f"Target Image: {image_name}")
     

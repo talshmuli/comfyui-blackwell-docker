@@ -1,6 +1,6 @@
-# ComfyUI & Blender VFX Studio Docker for NVIDIA Blackwell (RTX 5090 / 5080 - sm_120)
+# ComfyUI & Blender VFX Studio Bundle for NVIDIA Blackwell (RTX 5090 / 5080 - sm_120)
 
-[![Build & Publish ComfyUI Blackwell Image](https://github.com/talshmuli/comfyui-blackwell-docker/actions/workflows/build.yml/badge.svg)](https://github.com/talshmuli/comfyui-blackwell-docker/actions/workflows/build.yml)
+[![Build & Publish ComfyUI Blackwell Bundle](https://github.com/talshmuli/comfyui-blackwell-bundle/actions/workflows/build.yml/badge.svg)](https://github.com/talshmuli/comfyui-blackwell-bundle/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CUDA: 12.8](https://img.shields.io/badge/CUDA-12.8-green.svg)](https://developer.nvidia.com/cuda-toolkit)
 [![Compute: sm_120](https://img.shields.io/badge/Architecture-Blackwell%20sm__120-orange.svg)](https://www.nvidia.com/en-us/geforce/rtx-5090/)
@@ -123,7 +123,7 @@ The complete production orchestration definition (`docker-compose.yml`):
 ```yaml
 services:
   comfyui:
-    image: ${COMFYUI_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:nodes-cuda128-sm120}
+    image: ${COMFYUI_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-bundle:nodes-cuda128-sm120}
     container_name: comfyui-nodes
     profiles: ["modular", "nodes"]
     restart: unless-stopped
@@ -150,7 +150,7 @@ services:
       - vfx-net
 
   blender-worker:
-    image: ${BLENDER_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:blender-worker}
+    image: ${BLENDER_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-bundle:blender-worker}
     container_name: blender-worker
     profiles: ["modular", "dev"]
     restart: unless-stopped
@@ -172,7 +172,7 @@ services:
       - vfx-net
 
   comfyui-full:
-    image: ${COMFYUI_FULL_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-docker:full-cuda128-sm120}
+    image: ${COMFYUI_FULL_IMAGE:-ghcr.io/talshmuli/comfyui-blackwell-bundle:full-cuda128-sm120}
     container_name: comfyui-full
     profiles: ["monolith", "full"]
     restart: unless-stopped
@@ -213,17 +213,17 @@ networks:
 To guarantee reproducibility in production studio environments, images are published with strict version tagging:
 
 1. **Immutable Exact SemVer Tags (Never overwritten):**
-   * `base`: `ghcr.io/talshmuli/comfyui-blackwell-docker:v0.2.2-torch2.12.0.dev-cu128-base-YYYYMMDD-r<RUN_ID>`
-   * `nodes`: `ghcr.io/talshmuli/comfyui-blackwell-docker:v0.2.2-torch2.12.0.dev-cu128-nodes-YYYYMMDD-r<RUN_ID>`
-   * `full`: `ghcr.io/talshmuli/comfyui-blackwell-docker:v0.2.2-torch2.12.0.dev-cu128-full-YYYYMMDD-r<RUN_ID>`
-   * `blender-worker`: `ghcr.io/talshmuli/comfyui-blackwell-docker:blender4.4.3-cuda128-YYYYMMDD-r<RUN_ID>`
+   * `base`: `ghcr.io/talshmuli/comfyui-blackwell-bundle:v0.2.2-torch2.12.0.dev-cu128-base-YYYYMMDD-r<RUN_ID>`
+   * `nodes`: `ghcr.io/talshmuli/comfyui-blackwell-bundle:v0.2.2-torch2.12.0.dev-cu128-nodes-YYYYMMDD-r<RUN_ID>`
+   * `full`: `ghcr.io/talshmuli/comfyui-blackwell-bundle:v0.2.2-torch2.12.0.dev-cu128-full-YYYYMMDD-r<RUN_ID>`
+   * `blender-worker`: `ghcr.io/talshmuli/comfyui-blackwell-bundle:blender4.4.3-cuda128-YYYYMMDD-r<RUN_ID>`
 2. **Canonical Series Tags (Updated per stable release):**
    * `base-cuda128-sm120`
    * `nodes-cuda128-sm120` (also alias `v0.2.2-cuda128-sm120`)
    * `full-cuda128-sm120`
    * `blender-worker`
 3. **Latest Tag:**
-   * `ghcr.io/talshmuli/comfyui-blackwell-docker:latest` points directly to the `nodes` production workstation.
+   * `ghcr.io/talshmuli/comfyui-blackwell-bundle:latest` points directly to the `nodes` production workstation.
 
 ---
 
