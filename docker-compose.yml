@@ -8,10 +8,13 @@ services:
     profiles: ["modular", "nodes"]
     restart: unless-stopped
     ports:
-      - "${COMFYUI_PORT:-8188}:8188"
+      - "${COMFYUI_BIND_IP:-0.0.0.0}:${COMFYUI_PORT:-8188}:8188"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+      - WORKSPACE_UID=${PUID:-1000}
+      - WORKSPACE_GID=${PGID:-1000}
+      - UMASK=${UMASK:-0022}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
       - COMFYUI_ARGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
@@ -43,10 +46,13 @@ services:
     profiles: ["dev", "base"]
     restart: unless-stopped
     ports:
-      - "${COMFYUI_PORT:-8188}:8188"
+      - "${COMFYUI_BIND_IP:-0.0.0.0}:${COMFYUI_PORT:-8188}:8188"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+      - WORKSPACE_UID=${PUID:-1000}
+      - WORKSPACE_GID=${PGID:-1000}
+      - UMASK=${UMASK:-0022}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
       - COMFYUI_ARGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
@@ -103,10 +109,13 @@ services:
     profiles: ["monolith", "full"]
     restart: unless-stopped
     ports:
-      - "${COMFYUI_PORT:-8188}:8188"
+      - "${COMFYUI_BIND_IP:-0.0.0.0}:${COMFYUI_PORT:-8188}:8188"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+      - WORKSPACE_UID=${PUID:-1000}
+      - WORKSPACE_GID=${PGID:-1000}
+      - UMASK=${UMASK:-0022}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
       - COMFYUI_ARGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}

@@ -108,11 +108,19 @@ docker compose --profile monolith up -d
 ```
 > **Note:** The `full` image bundles everything for single-GPU workstations where simplicity matters more than service isolation. For production studios with high availability requirements, the `modular` profile (Option A) is recommended.
 
-### Custom Ports & Configuration
-To avoid port conflicts with host services, define custom ports in your environment:
+### Custom Ports, Network Binding & Permissions
+To customize host ports, restrict access to localhost, or match host user ownership:
 ```bash
+# Localhost-only binding (enhanced privacy against local LAN/Wi-Fi snooping)
+COMFYUI_BIND_IP=127.0.0.1 docker compose --profile modular up -d
+
+# Custom port mapping
 COMFYUI_PORT=8189 docker compose --profile modular up -d
+
+# Custom user/group ownership for generated output files
+PUID=1000 PGID=1000 docker compose --profile modular up -d
 ```
+> **Remote Access Tip (Tailscale / VPN):** For secure remote generation from phones, laptops, or remote offices without port-forwarding, run Tailscale on your host machine (`tailscale up`). You can access ComfyUI directly at `http://<tailscale-ip>:8188` across your private encrypted WireGuard mesh.
 
 ---
 
@@ -128,10 +136,13 @@ services:
     profiles: ["modular", "nodes"]
     restart: unless-stopped
     ports:
-      - "${COMFYUI_PORT:-8188}:8188"
+      - "${COMFYUI_BIND_IP:-0.0.0.0}:${COMFYUI_PORT:-8188}:8188"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+      - WORKSPACE_UID=${PUID:-1000}
+      - WORKSPACE_GID=${PGID:-1000}
+      - UMASK=${UMASK:-0022}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       - COMFYUI_PORT_LOCAL=${COMFYUI_PORT:-8188}
       - COMFYUI_ARGS=--listen 0.0.0.0 --reserve-vram ${RESERVE_VRAM:-1.5} ${COMFYUI_FLAGS:---preview-method auto --normalvram}
